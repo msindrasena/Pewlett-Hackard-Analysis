@@ -277,12 +277,11 @@ AND (de.to_date = '9999-01-01')
 
 -- Beginning of Module Challenge, Number of Retiring Employees by title
 SELECT e.emp_no,
-e.first_name,
-e.last_name,
 t.title,
 t.from_date,
-s.salary
-INTO retiring_by_title
+s.salary,
+e.first_name || ' ' || e.last_name AS FULL_NAME
+-- INTO retiringby_title
 FROM employees as e
 INNER JOIN titles as t
 ON (e.emp_no = t.emp_no)
@@ -291,17 +290,28 @@ ON (e.emp_no = s.emp_no)
 AND (birth_date BETWEEN '1952-01-01' AND '1955-12-31')
 AND (t.to_date = '9999-01-01');
 
-SELECT * FROM retiring_by_title
-
+-- Retitle columns
 SELECT emp_no AS Employee,
-   first_name AS FIRSTNAME,
-   last_name AS LASTNAME,
    title as Title,
    from_date as StartDate,
-   salary as Salary
-FROM retiring_by_title;
+   salary as Salary,
+   full_name as FullName
+FROM retiringby_title;
 
+-- Parition data to show most recent titles only
+SELECT emp_no, full_name, from_date, salary, title
+INTO retiring_employees
+  FROM
+(SELECT emp_no, full_name, from_date, salary, title,
+     ROW_NUMBER() OVER
+(PARTITION BY (full_name) ORDER BY from_date DESC) rn
+   FROM retiringby_title
+  ) tmp WHERE rn = 1
 
-
-
-
+-- Retitled columns with recent titles only
+SELECT emp_no AS Employee,
+   title as Title,
+   from_date as StartDate,
+   salary as Salary,
+   full_name as FullName
+FROM retiringby_title;
