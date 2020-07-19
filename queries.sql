@@ -36,53 +36,6 @@ CREATE TABLE salaries (
 );
 
 CREATE TABLE dept_emp (
-	dept_no VARCHAR(4) NOT NULL,
-	emp_no INT NOT Null,
-	from_date DATE NOT Null,
-	to_date DATE NOT Null,
-	FOREIGN KEY (dept_no) REFERENCES departments (dept_no),
-	FOREIGN KEY (emp_no) REFERENCES employees (emp_no), 
-	PRIMARY KEY (emp_no, dept_no)
-);
-DROP TABLE dept_emp;
-
-CREATE TABLE dept_emp (
-  emp_no INT NOT NULL,
-  dept_no VARCHAR(4) NOT NULL,
-  from_date DATE NOT NULL,
-  to_date DATE NOT NULL,
-  FOREIGN KEY (emp_no) REFERENCES employees (emp_no),
-  FOREIGN KEY (dept_no) REFERENCES departments (dept_no),
-  PRIMARY KEY (dept_no)
-);
-
-DROP TABLE dept_emp;
-
-CREATE TABLE dept_emp (
-  emp_no INT NOT NULL,
-  dept_no VARCHAR(10) NOT NULL,
-  from_date DATE NOT NULL,
-  to_date DATE NOT NULL,
-  FOREIGN KEY (emp_no) REFERENCES employees (emp_no),
-  FOREIGN KEY (dept_no) REFERENCES departments (dept_no),
-  PRIMARY KEY (dept_no)
-);
-
-DROP TABLE dept_emp;
-
-CREATE TABLE dept_emp (
-  emp_no INT NOT NULL,
-  dept_no VARCHAR(10) NOT NULL,
-  from_date DATE NOT NULL,
-  to_date DATE NOT NULL,
-  FOREIGN KEY (emp_no) REFERENCES employees (emp_no),
-  FOREIGN KEY (dept_no) REFERENCES departments (dept_no),
-  PRIMARY KEY (dept_no)
-);
-
-DROP TABLE dept_emp;
-
-CREATE TABLE dept_emp (
     emp_no INT NOT NULL,
     dept_no VARCHAR(10) NOT NULL,
     from_date DATE NOT NULL,
@@ -215,6 +168,8 @@ WHERE (e.birth_date BETWEEN '1952-01-01' AND '1955-12-31')
 AND (e.hire_date BETWEEN '1985-01-01' AND '1988-12-31')
 AND (de.to_date = '9999-01-01');
 
+SELECT * FROM emp_info;
+
 -- List of managers per department
 SELECT  dm.dept_no,
         d.dept_name,
@@ -275,43 +230,121 @@ AND (birth_date BETWEEN '1952-01-01' AND '1955-12-31')
 AND (hire_date BETWEEN '1985-01-01' AND '1988-12-31')
 AND (de.to_date = '9999-01-01')
 
--- Beginning of Module Challenge, Number of Retiring Employees by title
-SELECT e.emp_no,
-t.title,
-t.from_date,
-s.salary,
-e.first_name || ' ' || e.last_name AS FULL_NAME
--- INTO retiringby_title
+-- Beginning of Module Challenge, Deliverable 1: Number of Retiring Employees by title
+
+--1.1 Titles Retiring - Shows 7 Titles Retiring
+SELECT COUNT (t.title), t.title
+INTO number_titles_retiring
+FROM emp_info as rei
+inner JOIN titles as t
+ON (rei.emp_no = t.emp_no )
+GROUP BY t.title;
+
+-- Number of Titles Retiring
+SELECT COUNT(title)
+FROM number_titles_retiring;
+
+-- 1.2 Employees with Each Title
+SELECT COUNT (e.emp_no), t.title
+INTO number_employees_each_title
 FROM employees as e
 INNER JOIN titles as t
 ON (e.emp_no = t.emp_no)
-INNER JOIN Salaries as s
-ON (e.emp_no = s.emp_no)
+INNER JOIN dept_emp as de
+ON e.emp_no = de.emp_no
+AND (de.to_date = '9999-01-01')
+GROUP BY t.title;
+
+-- Number of Employees with Each Title
+SELECT * FROM number_employees_each_title;
+
+-- 1.3 Current List of Employees born between 01/01/52- 12/31/55
+SELECT e.emp_no, 
+	t.title,
+	t.from_date,
+	s.salary,
+	e.first_name || ' ' || e.last_name AS FULLNAME
+INTO retiring_title
+FROM employees as e
+	INNER JOIN titles as t
+		ON (e.emp_no = t.emp_no)
+	INNER JOIN Salaries as s
+		ON (e.emp_no = s.emp_no)
+	INNER JOIN dept_emp as de
+		ON (e.emp_no= de.emp_no)
 AND (birth_date BETWEEN '1952-01-01' AND '1955-12-31')
-AND (t.to_date = '9999-01-01');
+AND (de.to_date = '9999-01-01');
+
+SELECT * FROM retiring_title;
+
+-- Number of retiring employees with titles
+SELECT COUNT(emp_no)
+FROM retiring_title;
+
+-- Partion- get rid of dupes, show most recent title
+SELECT emp_no, fullname, from_date, salary, title
+INTO retiring_employees
+  FROM
+(SELECT emp_no, fullname, from_date, salary, title,
+     ROW_NUMBER() OVER
+(PARTITION BY (emp_no) ORDER BY from_date DESC) rn
+   FROM retiring_title
+  ) tmp WHERE rn = 1
+  ORDER BY emp_no;
+ 
+-- Number of retiring employees
+SELECT COUNT(emp_no)
+FROM retiring_employees;
 
 -- Retitle columns
 SELECT emp_no AS Employee,
    title as Title,
    from_date as StartDate,
    salary as Salary,
-   full_name as FullName
-FROM retiringby_title;
+   fullname as FullName
+FROM retiring_employees;
 
--- Parition data to show most recent titles only
-SELECT emp_no, full_name, from_date, salary, title
-INTO retiring_employees
-  FROM
-(SELECT emp_no, full_name, from_date, salary, title,
-     ROW_NUMBER() OVER
-(PARTITION BY (full_name) ORDER BY from_date DESC) rn
-   FROM retiringby_title
-  ) tmp WHERE rn = 1
+SELECT * FROM retiring_employees;
 
--- Retitled columns with recent titles only
-SELECT emp_no AS Employee,
-   title as Title,
-   from_date as StartDate,
-   salary as Salary,
-   full_name as FullName
-FROM retiringby_title;
+-- Deliverable 2: Mentorship Eligibility
+SELECT e.emp_no, t.title,
+--Combine first and last name into fullname
+e.first_name || ' ' || e.last_name AS FULLNAME,
+--Combine from and to data into one column
+t.from_date || ' and ' || t.to_date AS FROM_DATE_AND_TO_DATE
+INTO mentors_eligibility
+FROM employees as e
+INNER JOIN titles as t 
+ON (e.emp_no = t.emp_no)
+INNER JOIN dept_emp as de
+ON (e.emp_no = de.emp_no)
+AND (birth_date BETWEEN '1965-01-01' AND '1965-12-31')
+AND (de.to_date = '9999-01-01');
+
+--Check duplicates 
+SELECT * FROM
+  (SELECT *, count(*)
+   OVER
+    (PARTITION BY emp_no)
+    AS count
+  FROM mentors_eligibility) tableWithCount
+  WHERE tableWithCount.count > 1;
+
+-- Number of mentors_with_title, 2382
+SELECT COUNT(FULLNAME)
+FROM mentors_eligibility;
+
+-- Partition the data to show only most recent title per mentor to get actual number of mentors
+SELECT emp_no, fullname, title, from_date_and_to_date
+INTO mentors_total_eligibility
+FROM (SELECT emp_no, fullname, title, from_date_and_to_date,
+  ROW_NUMBER() OVER
+ (PARTITION BY (emp_no) ORDER BY from_date_and_to_date DESC) RN
+ FROM mentors_eligibility) tmp WHERE RN = 1
+ORDER BY emp_no;
+
+SELECT * FROM mentors_total_eligibility
+
+-- Number of mentors, 1549
+SELECT COUNT(fullname)
+FROM mentors_total_eligibility;
